@@ -44,9 +44,11 @@ function matchWithContext(text: string, regex: RegExp, max = 6) {
 function countMatches(text: string, regex: RegExp): number {
   const re = new RegExp(regex.source, regex.flags.includes("g") ? regex.flags : regex.flags + "g");
   let n = 0;
-  while (re.exec(text) !== null) {
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
     n++;
-    if (re.lastIndex === (re.lastIndex - 1)) re.lastIndex++;
+    // Guard against zero-width matches that would otherwise loop forever.
+    if (re.lastIndex === m.index) re.lastIndex++;
     if (n > 5000) break; // safety
   }
   return n;

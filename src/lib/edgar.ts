@@ -107,13 +107,42 @@ export async function getLatestAnnualFiling(
   return null;
 }
 
+// Hard limit on filing body size. EDGAR 10-Ks are usually 1-5 MB. 25 MB is a
+// generous ceiling that prevents an absurdly large filing from blowing out the
+// serverless function memory.
+const MAX_FILING_BYTES = 25 * 1024 * 1024;
+
+function isAllowedFilingHost(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:") return false;
+    const host = u.hostname.toLowerCase();
+    return host === "www.sec.gov" || host === "data.sec.gov" || host === "sec.gov";
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchFilingText(url: string): Promise<string> {
+  // SSRF guard: only allow fetches to SEC EDGAR hosts. URLs are constructed
+  // from EDGAR JSON, but we never want this helper turned into a generic
+  // proxy if someone changes the calling code later.
+  if (!isAllowedFilingHost(url)) {
+    throw new Error("Filing URL is not on an allowed SEC EDGAR host");
+  }
   const res = await fetch(url, {
     headers: { "User-Agent": UA, "Accept-Encoding": "gzip, deflate" },
     cache: "no-store",
   });
   if (!res.ok) throw new Error(`Filing fetch failed: ${res.status}`);
+  const len = Number(res.headers.get("content-length") || 0);
+  if (len > MAX_FILING_BYTES) {
+    throw new Error("Filing exceeds size limit");
+  }
   const raw = await res.text();
+  if (raw.length > MAX_FILING_BYTES) {
+    throw new Error("Filing body exceeds size limit");
+  }
   return stripHtml(raw);
 }
 
