@@ -37,21 +37,35 @@ async function runInit() {
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     )
   `;
+  await db`CREATE INDEX IF NOT EXISTS idx_aiw_scans_ticker ON aiw_scans(ticker)`;
+  await db`CREATE INDEX IF NOT EXISTS idx_aiw_scans_created ON aiw_scans(created_at DESC)`;
+  await db`CREATE INDEX IF NOT EXISTS idx_aiw_scans_score ON aiw_scans(washing_score DESC)`;
+
   await db`
-    CREATE INDEX IF NOT EXISTS idx_aiw_scans_ticker ON aiw_scans(ticker)
+    CREATE TABLE IF NOT EXISTS aiwd_paste (
+      id SERIAL PRIMARY KEY,
+      text_hash TEXT NOT NULL,
+      excerpt TEXT NOT NULL,
+      label TEXT,
+      plausibility_score INTEGER NOT NULL DEFAULT 50,
+      verdict TEXT NOT NULL,
+      one_liner TEXT NOT NULL,
+      receipts JSONB DEFAULT '[]',
+      role_findings JSONB DEFAULT '[]',
+      pressure_findings JSONB DEFAULT '[]',
+      signals JSONB DEFAULT '{}',
+      total_words INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
   `;
-  await db`
-    CREATE INDEX IF NOT EXISTS idx_aiw_scans_created ON aiw_scans(created_at DESC)
-  `;
-  await db`
-    CREATE INDEX IF NOT EXISTS idx_aiw_scans_score ON aiw_scans(washing_score DESC)
-  `;
+  await db`CREATE INDEX IF NOT EXISTS idx_aiwd_paste_created ON aiwd_paste(created_at DESC)`;
+  await db`CREATE INDEX IF NOT EXISTS idx_aiwd_paste_score ON aiwd_paste(plausibility_score ASC)`;
+  await db`CREATE INDEX IF NOT EXISTS idx_aiwd_paste_hash ON aiwd_paste(text_hash)`;
 }
 
 export async function ensureDb() {
   if (!initPromise) {
     initPromise = runInit().catch((err) => {
-      // Reset so the next request can try again instead of being permanently broken.
       initPromise = null;
       throw err;
     });

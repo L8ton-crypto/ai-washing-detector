@@ -6,12 +6,18 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "AI-Washing Detector",
   description:
-    "Score any public company on how much its AI talk is backed by real AI signals. Public data from SEC EDGAR filings.",
+    "Paste a layoff announcement or earnings transcript - we score how plausibly the AI claim holds up. Roles cut, US labour pool, code-gen reality check, activist pressure. Free, no login.",
   openGraph: {
     title: "AI-Washing Detector",
     description:
-      "Score any public company on how much its AI talk is backed by real AI signals.",
+      "Score any AI-replaced-jobs claim 0-100. Receipts based on roles named, what AI can actually do, US labour data and activist-pressure signals.",
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "AI-Washing Detector",
+    description:
+      "Score any AI-replaced-jobs claim 0-100. Free, public data only.",
   },
 };
 
