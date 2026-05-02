@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { FEATURED_CASES, type FeaturedCase } from "@/lib/featured-cases";
 
 type AnalyzeResponse = {
   id: number;
@@ -114,6 +115,17 @@ export default function Home() {
   const [mode, setMode] = useState<Mode>("paste");
   const [worstWeek, setWorstWeek] = useState<LeaderboardRow[]>([]);
   const [totalScans, setTotalScans] = useState<number>(0);
+  const [preset, setPreset] = useState<{ text: string; label: string; nonce: number } | null>(null);
+  const formAnchorRef = useRef<HTMLDivElement>(null);
+
+  const loadCase = useCallback((c: FeaturedCase) => {
+    setMode("paste");
+    setPreset({ text: c.text, label: c.label, nonce: Date.now() });
+    // Defer to next paint so Mode switch renders PasteMode before scroll
+    requestAnimationFrame(() => {
+      formAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
 
   const loadBoard = useCallback(async () => {
     try {
@@ -152,7 +164,9 @@ export default function Home() {
         </p>
       </header>
 
-      <section className="max-w-4xl mx-auto mt-8 sm:mt-12">
+      <FeaturedCasesSection onSelect={loadCase} />
+
+      <section className="max-w-4xl mx-auto mt-8 sm:mt-12" ref={formAnchorRef}>
         <div className="flex gap-2 border-b border-gray-800 mb-6 text-sm">
           <button
             type="button"
@@ -170,7 +184,7 @@ export default function Home() {
           </button>
         </div>
 
-        {mode === "paste" ? <PasteMode /> : <TickerMode reloadBoard={loadBoard} />}
+        {mode === "paste" ? <PasteMode preset={preset} /> : <TickerMode reloadBoard={loadBoard} />}
       </section>
 
       <section className="max-w-4xl mx-auto mt-14">
@@ -231,30 +245,30 @@ export default function Home() {
   );
 }
 
-const SAMPLES: { id: string; label: string; text: string }[] = [
-  {
-    id: "vague-cuts",
-    label: "Vague layoff",
-    text: "After a careful business review and a transformation programme to expand operating margins, we are reducing our workforce by 12% as AI agents now handle work previously done by our customer support and content marketing teams. We thank everyone for their service.",
-  },
-  {
-    id: "specific-deploy",
-    label: "Specific deployment",
-    text: "Over the past nine months we deployed Claude Sonnet 4 across our tier-1 customer support workflow. Tickets deflected per week climbed from 4,800 to 14,200 and cost per case is down 62%. As a result, we are reducing our outsourced support team by 80 roles. Internal hiring continues for tier-3 escalation specialists.",
-  },
-  {
-    id: "engineer-claim",
-    label: "Engineers replaced (suspicious)",
-    text: "Following pressure from activist shareholders to expand margins and missed Q3 guidance, we are restructuring engineering. AI took over much of the engineering team's work and we are eliminating 200 software engineering roles. The board has approved a $40m restructuring charge.",
-  },
-];
+// Sample buttons under the textarea derive from FEATURED_CASES so curated
+// content stays in one place.
+const SAMPLES: { id: string; label: string; text: string }[] = FEATURED_CASES.map((c) => ({
+  id: c.id,
+  label: c.label,
+  text: c.text,
+}));
 
-function PasteMode() {
+function PasteMode({ preset }: { preset: { text: string; label: string; nonce: number } | null }) {
   const [text, setText] = useState("");
   const [label, setLabel] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PasteResponse | null>(null);
+
+  // When a Featured Case is clicked, prefill the form. The nonce ensures we
+  // re-apply if the same case is clicked twice in a row.
+  useEffect(() => {
+    if (!preset) return;
+    setText(preset.text);
+    setLabel(preset.label);
+    setResult(null);
+    setError(null);
+  }, [preset]);
 
   const submit = useCallback(
     async (e: React.FormEvent) => {
@@ -732,4 +746,76 @@ function EvidenceGroup({ title, samples, tone }: { title: string; samples: { mat
       </ul>
     </details>
   );
+}
+
+function FeaturedCasesSection({ onSelect }: { onSelect: (c: FeaturedCase) => void }) {
+  if (FEATURED_CASES.length === 0) return null;
+  const [headline, ...rest] = FEATURED_CASES;
+  return (
+    <section className="max-w-4xl mx-auto mt-10 sm:mt-14" aria-labelledby="featured-cases-heading">
+      <div className="flex items-end justify-between mb-4">
+        <div>
+          <h2 id="featured-cases-heading" className="text-xl sm:text-2xl font-semibold text-white">
+            Featured cases
+          </h2>
+          <p className="text-xs text-gray-500 mt-1">
+            Real claims from public coverage. Click to load into the form below.
+          </p>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onSelect(headline)}
+        className="group block w-full text-left rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 via-gray-900/60 to-gray-900/40 px-5 py-5 sm:px-6 sm:py-6 hover:border-emerald-400/60 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+      >
+        <div className="flex flex-wrap items-center gap-2 text-[10px] sm:text-xs uppercase tracking-widest">
+          <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+            This month
+          </span>
+          <span className="text-gray-500">{formatMonth(headline.month)}</span>
+        </div>
+        <div className="mt-3 text-lg sm:text-xl font-semibold text-white group-hover:text-emerald-200 transition-colors">
+          {headline.label}
+        </div>
+        <p className="mt-2 text-sm sm:text-base text-gray-300">{headline.tagline}</p>
+        <div className="mt-4 inline-flex items-center gap-2 text-xs font-medium text-emerald-300 group-hover:text-emerald-200">
+          Load into the form
+          <span aria-hidden>&rarr;</span>
+        </div>
+      </button>
+
+      {rest.length > 0 && (
+        <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+          {rest.map((c) => (
+            <li key={c.id}>
+              <button
+                type="button"
+                onClick={() => onSelect(c)}
+                className="group block w-full text-left rounded-lg border border-gray-800 bg-gray-900/40 px-4 py-4 hover:border-gray-600 hover:bg-gray-900/70 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+              >
+                <div className="text-[10px] uppercase tracking-widest text-gray-500">{formatMonth(c.month)}</div>
+                <div className="mt-1 text-sm font-semibold text-white group-hover:text-gray-100">{c.label}</div>
+                <p className="mt-1.5 text-xs text-gray-400 leading-relaxed">{c.tagline}</p>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function formatMonth(iso: string): string {
+  // Expects "YYYY-MM". Returns e.g. "April 2026".
+  const m = /^(\d{4})-(\d{2})$/.exec(iso);
+  if (!m) return iso;
+  const year = Number(m[1]);
+  const month = Number(m[2]) - 1;
+  if (month < 0 || month > 11) return iso;
+  const names = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ];
+  return `${names[month]} ${year}`;
 }
